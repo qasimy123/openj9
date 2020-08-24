@@ -76,5 +76,6 @@ j9jit_files(
 	optimizer/MethodHandleTransformer.cpp
 	optimizer/VectorAPIExpansion.cpp
 	optimizer/VPBCDConstraint.cpp
-	optimizer/TreeLowering.cpp
+	optimizer/abstractinterpreter/J9IDTBuilder.cpp
+	optimizer/abstractinterpreter/J9AbsInterpreter.cpp
 )
