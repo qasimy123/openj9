@@ -21,6 +21,7 @@
 
 #include "optimizer/abstractinterpreter/J9AbsInterpreter.hpp"
 #include "optimizer/J9CallGraph.hpp"
+#include "optimizer/StructuralAnalysis.hpp"
 
 J9::AbsInterpreter::AbsInterpreter(TR::ResolvedMethodSymbol* callerMethodSymbol, TR::CFG* cfg, TR::AbsVisitor* vistor, TR::AbsArguments* arguments, TR::Region& region, TR::Compilation* comp):
       TR_J9ByteCodeIterator(callerMethodSymbol, static_cast<TR_ResolvedJ9Method*>(callerMethodSymbol->getResolvedMethod()), static_cast<TR_J9VMBase*>(comp->fe()), comp),
@@ -69,6 +70,15 @@ bool J9::AbsInterpreter::interpret()
    {
    if (comp()->getOption(TR_TraceAbstractInterpretation))
       traceMsg(comp(), "\nStarting to abstract interpret method %s ...\n", _callerMethod->signature(comp()->trMemory()));
+
+   if (_cfg->hasBackEdges()) //may have loops
+      {
+      TR::CFG *storeCfg = _callerMethodSymbol->getFlowGraph();
+      _callerMethodSymbol->setFlowGraph(_cfg);
+      TR_RegionAnalysis::getRegions2(comp(), _callerMethodSymbol);
+
+      _callerMethodSymbol->setFlowGraph(storeCfg);
+      }
 
    setStartBlockState();
    moveToNextBlock();
@@ -159,7 +169,7 @@ void J9::AbsInterpreter::setStartBlockState()
          TR::AbsVPValue* arg = static_cast<TR::AbsVPValue*>(_arguments->at(i));
          TR::DataType dataType = arg->getDataType();
 
-         TR::AbsVPValue* param = new TR::AbsVPValue(vp(), arg->getConstraint(), dataType);
+         TR::AbsVPValue* param = new (region()) TR::AbsVPValue(vp(), arg->getConstraint(), dataType);
          param->setParamPosition(paramPos);
 
          if (i == 0 && !_callerMethod->isStatic())
@@ -349,7 +359,6 @@ void J9::AbsInterpreter::transferBlockStatesFromPredeccesors()
          }
 
       /*** Case 3.2: Not all predecessors are interpreted. Have back-edges. Set the state to TOP ***/
-      //NOTE: This case (back-edge) will be handled in the future. 
       if (!allPredecessorsInterpreted && oneInterpretedBlock)
          {
          TR::AbsState* copiedState = oneInterpretedBlock->getAbsState()->clone(region());
