@@ -1016,6 +1016,8 @@ TR_J9EstimateCodeSize::processBytecodeAndGenerateCFG(TR_CallTarget *calltarget, 
                      calltarget->_calleeMethod, i + bci.relativeBranch(),
                      cfg));
                addFallThruEdge = true;
+               if (bci.relativeBranch() < 0)
+                  cfg.setHasBackEdges();
                break;
                }
             case J9BCgoto:
@@ -1023,6 +1025,8 @@ TR_J9EstimateCodeSize::processBytecodeAndGenerateCFG(TR_CallTarget *calltarget, 
                setupLastTreeTop(currentBlock, bc, i, getBlock(comp(), blocks, calltarget->_calleeMethod, i + bci.relativeBranch(), cfg), calltarget->_calleeMethod, comp());
                cfg.addEdge(currentBlock, getBlock(comp(), blocks, calltarget->_calleeMethod, i + bci.relativeBranch(), cfg));
                addFallThruEdge = false;
+               if (bci.relativeBranch() < 0)
+                  cfg.setHasBackEdges();
                break;
             case J9BCReturnC:
             case J9BCReturnS:
