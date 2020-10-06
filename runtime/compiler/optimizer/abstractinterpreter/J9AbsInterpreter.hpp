@@ -98,6 +98,10 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
    void transferBlockStatesFromPredeccesors();
    
    bool interpretByteCode();
+
+   bool interpretStructure(TR_Structure* structure);
+   bool interpretRegionStructure(TR_RegionStructure* regionStructure);
+   bool interpretBlockStructure(TR_BlockStructure* blockStructure);
       
    /** For interpreting bytecode and updating abstract state **/
 
@@ -217,6 +221,23 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
    TR::ValuePropagation* _vp;
    };
 
+
+class RegionIterator
+   {
+   public:
+   RegionIterator(TR_RegionStructure *region, TR::Region &mem);
+
+   TR_StructureSubGraphNode *getCurrent();
+   void next();
+
+   private:
+   void addSuccessors(TR_StructureSubGraphNode *from);
+
+   TR_RegionStructure *_region;
+   TR::deque<TR_StructureSubGraphNode*, TR::Region &> _nodes;
+   TR_BitVector _seen;
+   int32_t _current;
+   };
 }
 
 #endif

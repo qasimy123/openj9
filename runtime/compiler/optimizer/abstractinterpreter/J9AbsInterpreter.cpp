@@ -22,6 +22,9 @@
 #include "optimizer/abstractinterpreter/J9AbsInterpreter.hpp"
 #include "optimizer/J9CallGraph.hpp"
 #include "optimizer/StructuralAnalysis.hpp"
+#include "optimizer/Structure.hpp"
+
+
 
 J9::AbsInterpreter::AbsInterpreter(TR::ResolvedMethodSymbol* callerMethodSymbol, TR::CFG* cfg, TR::AbsVisitor* vistor, TR::AbsArguments* arguments, TR::Region& region, TR::Compilation* comp):
       TR_J9ByteCodeIterator(callerMethodSymbol, static_cast<TR_ResolvedJ9Method*>(callerMethodSymbol->getResolvedMethod()), static_cast<TR_J9VMBase*>(comp->fe()), comp),
@@ -71,12 +74,14 @@ bool J9::AbsInterpreter::interpret()
    if (comp()->getOption(TR_TraceAbstractInterpretation))
       traceMsg(comp(), "\nStarting to abstract interpret method %s ...\n", _callerMethod->signature(comp()->trMemory()));
 
+   printf("################ %s ###################\n",_callerMethod->signature(comp()->trMemory()));
+
    if (_cfg->hasBackEdges()) //may have loops
       {
       TR::CFG *storeCfg = _callerMethodSymbol->getFlowGraph();
       _callerMethodSymbol->setFlowGraph(_cfg);
-      TR_RegionAnalysis::getRegions2(comp(), _callerMethodSymbol);
-
+      TR_RegionStructure* structure = TR_RegionAnalysis::getRegions2(comp(), _callerMethodSymbol)->asRegion();
+      interpretRegionStructure(structure);
       _callerMethodSymbol->setFlowGraph(storeCfg);
       }
 
@@ -104,7 +109,7 @@ bool J9::AbsInterpreter::interpret()
          {
          if (currentBlock()->getAbsState())
             {
-            bool success = interpretByteCode();
+            //bool success = interpretByteCode();
 
             if (!success) // Should abort interpreting the whole method immediately if any bytecode fails to be interpreted.
                {
@@ -147,9 +152,36 @@ void J9::AbsInterpreter::moveToNextBlock()
       {
       if (comp()->getOption(TR_TraceAbstractInterpretation))
          traceMsg(comp(), "\nStart to abstract interpret Block: #%d of method %s ...\n", currentBlock()->getNumber(), _callerMethod->signature(comp()->trMemory()));
+      printf("Block: %d Start: %d\n", currentBlock()->getNumber(), currentBlock()->getBlockBCIndex() );
       transferBlockStatesFromPredeccesors(); //transfer CFG abstract states to the current block
       setIndex(currentBlock()->getBlockBCIndex()); //set the start index of the bytecode iterator
       }
+   }
+
+bool J9::AbsInterpreter::interpretStructure(TR_Structure* structure)
+   {
+   if (structure->asBlock())
+      return interpretBlockStructure(structure->asBlock());
+   else if (structure->asRegion())
+      return interpretRegionStructure(structure->asRegion());
+   }
+
+bool J9::AbsInterpreter::interpretRegionStructure(TR_RegionStructure* regionStructure)
+   {
+   if (regionStructure->isAcyclic() || regionStructure->isNaturalLoop())
+      {
+      for (RegionIterator ri(regionStructure, _region); ri.getCurrent(); ri.next())
+         {
+         TR_StructureSubGraphNode *node = ri.getCurrent();
+         interpretStructure(node->getStructure());
+         }
+      }
+   }
+
+bool J9::AbsInterpreter::interpretBlockStructure(TR_BlockStructure* blockStructure) 
+   {
+   printf("Structure: %d start: %d\n", blockStructure->getBlock()->getNumber(), blockStructure->getBlock()->getBlockBCIndex());
+   return true;
    }
 
 //Set the abstract state of the START block of CFG
@@ -2835,4 +2867,45 @@ bool J9::AbsInterpreter::isLong(TR::AbsValue* v)
    {
    TR::AbsVPValue* value = static_cast<TR::AbsVPValue*>(v);
    return value->getConstraint() && value->getConstraint()->asLongConstraint();
+   }
+
+J9::RegionIterator::RegionIterator(TR_RegionStructure *region, TR::Region &mem):
+      _region(region),
+      _nodes(mem),
+      _seen(mem)
+   {
+   TR_StructureSubGraphNode *entry = region->getEntry();
+   _seen.set(entry->getNumber());
+   addSuccessors(entry);
+   _nodes.push_back(entry);
+   _current = _nodes.size() - 1;
+   }
+
+void J9::RegionIterator::addSuccessors(TR_StructureSubGraphNode *from)
+   {
+   for (TR_SuccessorIterator si(from); si.getCurrent(); si.getNext())
+      {
+      TR_StructureSubGraphNode *successor = toStructureSubGraphNode(si.getCurrent()->getTo());
+      if (!_seen.isSet(successor->getNumber()) && _region->contains(successor->getStructure()))
+         {
+         _seen.set(successor->getNumber());
+         addSuccessors(successor);
+         _nodes.push_back(successor);
+         }
+      }
+   }
+
+TR_StructureSubGraphNode* J9::RegionIterator::getCurrent()
+   {
+   if (_current < 0)
+      {
+      return NULL;
+      }
+
+   return _nodes[_current];
+   }
+
+void J9::RegionIterator::next()
+   {
+   _current--;
    }
