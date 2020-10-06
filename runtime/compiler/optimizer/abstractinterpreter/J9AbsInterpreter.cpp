@@ -94,12 +94,11 @@ bool J9::AbsInterpreter::interpret()
 
    // abstract interpret the whole method, methods with and without loops will be interpreted differently
    //
-
    if (_cfg->hasBackEdges()) // may have loops, do the structural analysis
       {
       TR::CFG *storeCfg = _callerMethodSymbol->getFlowGraph();
       TR_RegionStructure* structure = TR_RegionAnalysis::getRegions(comp(), _cfg)->asRegion(); // generating the structures
-      bool success = interpretRegionStructure(structure);
+      bool success = interpretRegionStructure(structure, false, true);
 
       if (!success)
          return false;
@@ -107,11 +106,24 @@ bool J9::AbsInterpreter::interpret()
    else // do not have loops, walk the CFG blocks
       {
       TR::ReversePostorderSnapshotBlockIterator blockIt(_cfg, comp());
+
       while (blockIt.currentBlock())
          {
+         J9::AbsBlockInterpreter blockInterpreter(blockIt.currentBlock(), 
+                                                   false,  // inside loop
+                                                   true,   // last time through
+                                                   _callerIndex, 
+                                                   _callerMethodSymbol, 
+                                                   _bci, 
+                                                   &_returnValue, 
+                                                   _inliningMethodSummary, 
+                                                   _visitor, 
+                                                   vp(), 
+                                                   comp(), 
+                                                   region());
+
          if (blockIt.currentBlock() == _cfg->getStart()->asBlock())
             {
-            J9::AbsBlockInterpreter blockInterpreter(blockIt.currentBlock(), _callerIndex, _callerMethodSymbol, _bci, &_returnValue, _inliningMethodSummary, _visitor, vp(), comp(), region());
             blockInterpreter.setStartBlockState(_arguments);
             }
          else if (blockIt.currentBlock() == _cfg->getEnd()->asBlock())
@@ -121,7 +133,6 @@ bool J9::AbsInterpreter::interpret()
          else 
             {
             // interpret the block
-            J9::AbsBlockInterpreter blockInterpreter(blockIt.currentBlock(), _callerIndex, _callerMethodSymbol, _bci, &_returnValue, _inliningMethodSummary, _visitor, vp(), comp(), region());
             bool success = blockInterpreter.interpret();
             
             if (!success)
@@ -141,36 +152,61 @@ bool J9::AbsInterpreter::interpret()
    return true;
    }
 
-bool J9::AbsInterpreter::interpretStructure(TR_Structure* structure)
+bool J9::AbsInterpreter::interpretStructure(TR_Structure* structure, bool insideLoop, bool lastTimeThrough)
    {
    if (structure->asBlock())
-      return interpretBlockStructure(structure->asBlock());
+      return interpretBlockStructure(structure->asBlock(), insideLoop, lastTimeThrough);
    else if (structure->asRegion())
-      return interpretRegionStructure(structure->asRegion());
+      return interpretRegionStructure(structure->asRegion(), insideLoop, lastTimeThrough);
 
    return false;
    }
 
-bool J9::AbsInterpreter::interpretRegionStructure(TR_RegionStructure* regionStructure)
+bool J9::AbsInterpreter::interpretRegionStructure(TR_RegionStructure* regionStructure, bool insideLoop, bool lastTimeThrough)
    {
-   if (regionStructure->isAcyclic() || regionStructure->isNaturalLoop())
+
+   if (regionStructure->isNaturalLoop())
       {
       for (RegionIterator ri(regionStructure, _region); ri.getCurrent(); ri.next())
          {
          TR_StructureSubGraphNode *node = ri.getCurrent();
-         bool success = interpretStructure(node->getStructure());
+         bool success = interpretStructure(node->getStructure(), true, false);
 
          if (!success)
             return false;
          }
       }
+   else if (!regionStructure->isAcyclic()) // improper region, do not interpret.
+      {
+      return true;
+      }
 
+   for (RegionIterator ri(regionStructure, _region); ri.getCurrent(); ri.next())
+      {
+      TR_StructureSubGraphNode *node = ri.getCurrent();
+      bool success = interpretStructure(node->getStructure(), regionStructure->isNaturalLoop()? true : insideLoop, lastTimeThrough);
+
+      if (!success)
+         return false;
+      }
+      
    return true;
    }
 
-bool J9::AbsInterpreter::interpretBlockStructure(TR_BlockStructure* blockStructure) 
+bool J9::AbsInterpreter::interpretBlockStructure(TR_BlockStructure* blockStructure, bool insideLoop, bool lastTimeThrough) 
    {
-   J9::AbsBlockInterpreter blockInterpreter(blockStructure->getBlock(), _callerIndex, _callerMethodSymbol, _bci, &_returnValue, _inliningMethodSummary, _visitor, vp(), comp(), region());
+   J9::AbsBlockInterpreter blockInterpreter(blockStructure->getBlock(),
+                                           insideLoop,
+                                           lastTimeThrough,
+                                           _callerIndex, 
+                                           _callerMethodSymbol, 
+                                           _bci, 
+                                           &_returnValue, 
+                                           _inliningMethodSummary, 
+                                           _visitor, 
+                                           vp(), 
+                                           comp(), 
+                                           region());
    
    if (blockStructure->getBlock() == _cfg->getStart()->asBlock())
       {
@@ -186,6 +222,8 @@ bool J9::AbsInterpreter::interpretBlockStructure(TR_BlockStructure* blockStructu
    }
 
 J9::AbsBlockInterpreter::AbsBlockInterpreter(TR::Block* block,
+                                             bool insideLoop,
+                                             bool lastTimeThrough,
                                              int32_t callerIndex, 
                                              TR::ResolvedMethodSymbol* callerMethodSymbol, 
                                              TR_J9ByteCodeIterator* bci,
@@ -196,6 +234,8 @@ J9::AbsBlockInterpreter::AbsBlockInterpreter(TR::Block* block,
                                              TR::Compilation* comp, 
                                              TR::Region& region) :
       _block(block),
+      _insideLoop(insideLoop),
+      _lastTimeThrough(lastTimeThrough),
       _callerIndex(callerIndex),
       _callerMethodSymbol(callerMethodSymbol),
       _callerMethod(callerMethodSymbol->getResolvedMethod()),
@@ -2551,6 +2591,10 @@ void J9::AbsBlockInterpreter::invoke(TR::MethodSymbol::Kinds kind)
    {
    TR::AbsStackMachineState* state = getState();
 
+   if (!lastTimeThrough())
+      {
+      
+      }
    int32_t cpIndex = _bci->next2Bytes();
 
    //split

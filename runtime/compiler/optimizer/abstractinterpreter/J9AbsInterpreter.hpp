@@ -62,9 +62,9 @@ class AbsInterpreter
 
    TR::ValuePropagation *vp();
 
-   bool interpretStructure(TR_Structure* structure);
-   bool interpretRegionStructure(TR_RegionStructure* regionStructure);
-   bool interpretBlockStructure(TR_BlockStructure* blockStructure);
+   bool interpretStructure(TR_Structure* structure, bool insideLoop, bool lastTimeThrough);
+   bool interpretRegionStructure(TR_RegionStructure* regionStructure, bool insideLoop, bool lastTimeThrough);
+   bool interpretBlockStructure(TR_BlockStructure* blockStructure, bool insideLoop, bool lastTimeThrough);
       
    TR::AbsVisitor* _visitor;
 
@@ -85,10 +85,15 @@ class AbsInterpreter
    TR::ValuePropagation* _vp;
    };
 
+/*
+ * The interpreter for a Basic Block. 
+ */
 class AbsBlockInterpreter
    {
    public:
    AbsBlockInterpreter(TR::Block* block,
+                        bool insideLoop,
+                        bool lastTimeThrough,
                         int32_t callerIndex, 
                         TR::ResolvedMethodSymbol* callerMethodSymbol, 
                         TR_J9ByteCodeIterator* bci,
@@ -139,6 +144,9 @@ class AbsBlockInterpreter
    int32_t getBlockStartIndex() { return _block->getBlockBCIndex(); }
    int32_t getBlockEndIndex() { return _block->getBlockBCIndex() + _block->getBlockSize(); }
    TR::AbsStackMachineState* getState() { return static_cast<TR::AbsStackMachineState*>(_block->getAbsState()); }
+
+   bool insideLoop() { return _insideLoop; }
+   bool lastTimeThrough() { return _lastTimeThrough; }
 
    void transferBlockStatesFromPredeccesors();
    
@@ -247,6 +255,9 @@ class AbsBlockInterpreter
    TR::Region& region() { return _region; }
    TR::ValuePropagation* vp() { return _vp; }
 
+   bool _insideLoop;
+   bool _lastTimeThrough;
+
    int32_t _callerIndex;
    TR::Block* _block;
    TR::AbsValue** _returnValue;
@@ -259,7 +270,6 @@ class AbsBlockInterpreter
    TR::AbsVisitor* _visitor;
    TR::InliningMethodSummary* _inliningMethodSummary;
    };
-
 
 class RegionIterator
    {
