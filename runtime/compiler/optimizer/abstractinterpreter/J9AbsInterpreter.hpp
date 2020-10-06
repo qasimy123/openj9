@@ -35,7 +35,7 @@ namespace J9 {
  * The abstract interpreter for Java Bytecode.
  * It interprets the method and simluates the JVM state.
  */
-class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorderSnapshotBlockIterator
+class AbsInterpreter
    {
    public:
    AbsInterpreter(TR::ResolvedMethodSymbol* callerMethodSymbol, TR::CFG* cfg, TR::AbsVisitor* vistor, TR::AbsArguments* arguments, TR::Region& region, TR::Compilation* comp);
@@ -56,6 +56,55 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
    void setCallerIndex(int32_t callerIndex) { _callerIndex = callerIndex; }
    
    private:
+
+   TR::Compilation* comp() {  return _comp; }
+   TR::Region& region() {  return _region;  }
+
+   TR::ValuePropagation *vp();
+
+   bool interpretStructure(TR_Structure* structure);
+   bool interpretRegionStructure(TR_RegionStructure* regionStructure);
+   bool interpretBlockStructure(TR_BlockStructure* blockStructure);
+      
+   TR::AbsVisitor* _visitor;
+
+   TR::AbsArguments* _arguments;
+
+   TR::InliningMethodSummary* _inliningMethodSummary;
+   TR::AbsValue* _returnValue;
+
+   TR_J9ByteCodeIterator* _bci;
+   
+   int32_t _callerIndex;
+   TR::ResolvedMethodSymbol* _callerMethodSymbol;
+   TR_ResolvedMethod* _callerMethod;
+   TR::CFG* _cfg;
+
+   TR::Region& _region;
+   TR::Compilation* _comp;
+   TR::ValuePropagation* _vp;
+   };
+
+class AbsBlockInterpreter
+   {
+   public:
+   AbsBlockInterpreter(TR::Block* block,
+                        int32_t callerIndex, 
+                        TR::ResolvedMethodSymbol* callerMethodSymbol, 
+                        TR_J9ByteCodeIterator* bci,
+                        TR::AbsValue** returnValue, 
+                        TR::InliningMethodSummary* summary,
+                        TR::AbsVisitor* visitor,
+                        TR::ValuePropagation* vp,
+                        TR::Compilation* comp, 
+                        TR::Region& region);
+
+   bool interpret();
+   
+   void setStartBlockState(TR::AbsArguments* args); //only use this if the block to be interpreted is the START block of the CFG
+
+   private:
+
    enum BinaryOperator
       {
       plus, minus, mul, div, rem,
@@ -86,23 +135,15 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
       cmp
       };
 
-   TR::Compilation* comp() {  return _comp; }
-   TR::Region& region() {  return _region;  }
-
-   TR::ValuePropagation *vp();
-
-   void moveToNextBlock();
-
-   void setStartBlockState();
+   TR::Block* getBlock() { return _block; }
+   int32_t getBlockStartIndex() { return _block->getBlockBCIndex(); }
+   int32_t getBlockEndIndex() { return _block->getBlockBCIndex() + _block->getBlockSize(); }
+   TR::AbsStackMachineState* getState() { return static_cast<TR::AbsStackMachineState*>(_block->getAbsState()); }
 
    void transferBlockStatesFromPredeccesors();
    
    bool interpretByteCode();
 
-   bool interpretStructure(TR_Structure* structure);
-   bool interpretRegionStructure(TR_RegionStructure* regionStructure);
-   bool interpretBlockStructure(TR_BlockStructure* blockStructure);
-      
    /** For interpreting bytecode and updating abstract state **/
 
    void constant(int32_t i);
@@ -202,23 +243,21 @@ class AbsInterpreter : public TR_J9ByteCodeIterator, public TR::ReversePostorder
    bool isLongRange(TR::AbsValue* v);
    bool isLong(TR::AbsValue* v);
 
-   TR::AbsVisitor* _visitor;
+   TR::Compilation* comp() { return _comp; }
+   TR::Region& region() { return _region; }
+   TR::ValuePropagation* vp() { return _vp; }
 
-   TR::AbsArguments* _arguments;
-
-   TR::InliningMethodSummary* _inliningMethodSummary;
-   TR::AbsValue* _returnValue;
-   
    int32_t _callerIndex;
+   TR::Block* _block;
+   TR::AbsValue** _returnValue;
+   TR::Compilation* _comp;
+   TR::Region& _region;
+   TR::ValuePropagation* _vp;
    TR::ResolvedMethodSymbol* _callerMethodSymbol;
    TR_ResolvedMethod* _callerMethod;
-   TR::CFG* _cfg;
-
-   bool *_blockStartIndexFlags;  //marks if the index is the start index of any basic block
-
-   TR::Region& _region;
-   TR::Compilation* _comp;
-   TR::ValuePropagation* _vp;
+   TR_J9ByteCodeIterator* _bci;
+   TR::AbsVisitor* _visitor;
+   TR::InliningMethodSummary* _inliningMethodSummary;
    };
 
 
