@@ -33,7 +33,7 @@ namespace J9 {
    
 /*
  * The abstract interpreter for Java Bytecode.
- * It interprets the method and simluates the JVM state.
+ * It interprets the whole method.
  */
 class AbsInterpreter
    {
@@ -42,8 +42,8 @@ class AbsInterpreter
 
    /**
     * @brief start to interpret the method.
-    * It walks the CFG's basic blocks in reverse post order and interprets the bytecode in each block,
-    * updating the block's abstract state correspondingly.
+    * Method without loop will be interpreted by walking the CFG blocks.
+    * Method with loops will be interpreted using structrual analysis.
     * 
     * @return true if the whole method is successfully interpreted. false otherwise
     */

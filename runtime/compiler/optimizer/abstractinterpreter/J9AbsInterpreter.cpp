@@ -164,7 +164,6 @@ bool J9::AbsInterpreter::interpretStructure(TR_Structure* structure, bool inside
 
 bool J9::AbsInterpreter::interpretRegionStructure(TR_RegionStructure* regionStructure, bool insideLoop, bool lastTimeThrough)
    {
-
    if (regionStructure->isNaturalLoop())
       {
       for (RegionIterator ri(regionStructure, _region); ri.getCurrent(); ri.next())
@@ -217,8 +216,10 @@ bool J9::AbsInterpreter::interpretBlockStructure(TR_BlockStructure* blockStructu
       {
       return true;
       }
-
-   return blockInterpreter.interpret();
+   else
+      {
+      return blockInterpreter.interpret();   
+      }
    }
 
 J9::AbsBlockInterpreter::AbsBlockInterpreter(TR::Block* block,
@@ -403,6 +404,11 @@ bool J9::AbsBlockInterpreter::interpret()
       _bci->next();
       }
 
+      if (comp()->getOption(TR_TraceAbstractInterpretation))
+         {
+         traceMsg(comp(), "State of Block #%d of method %s:\n", getBlock()->getNumber(), _callerMethod->signature(comp()->trMemory()));
+         getState()->print(comp());
+         }  
    return true;
    }
 
@@ -1155,7 +1161,7 @@ void J9::AbsBlockInterpreter::binaryOperation(TR::DataType type, BinaryOperator 
       //The following types are modeled
       case TR::Int32:
          {
-         if (isIntConst(value1) && isIntConst(value2)) //both int const
+         if (isIntConst(value1) && isIntConst(value2) && !insideLoop()) //both int const
             {
             int32_t intVal1 = static_cast<TR::AbsVPValue*>(value1)->getConstraint()->asIntConst()->getInt();
             int32_t intVal2 = static_cast<TR::AbsVPValue*>(value2)->getConstraint()->asIntConst()->getInt();
@@ -1219,7 +1225,7 @@ void J9::AbsBlockInterpreter::binaryOperation(TR::DataType type, BinaryOperator 
 
       case TR::Int64:
          {
-         if (isLongConst(value1) && isLongConst(value2)) //both long const
+         if (isLongConst(value1) && isLongConst(value2) && !insideLoop()) //both long const
             {
             int64_t longVal1 = static_cast<TR::AbsVPValue*>(value1)->getConstraint()->asLongConst()->getLong();
             int64_t longVal2 = static_cast<TR::AbsVPValue*>(value2)->getConstraint()->asLongConst()->getLong();
@@ -1322,14 +1328,14 @@ void J9::AbsBlockInterpreter::unaryOperation(TR::DataType type, UnaryOperator op
 
       case TR::Int32:
          {
-         if (isIntConst(value)) //const int
+         if (isIntConst(value) && !insideLoop()) //const int
             {
             int32_t intVal = static_cast<TR::AbsVPValue*>(value)->getConstraint()->asIntConst()->getInt();
             TR::AbsValue* result = createIntConst(-intVal);
             state->push(result);
             break;
             }
-         else if (isIntRange(value)) //range int
+         else if (isIntRange(value) && !insideLoop()) //range int
             {
             int32_t intValLow = static_cast<TR::AbsVPValue*>(value)->getConstraint()->asIntRange()->getLowInt();
             int32_t intValHigh = static_cast<TR::AbsVPValue*>(value)->getConstraint()->asIntRange()->getHighInt();
@@ -1355,7 +1361,7 @@ void J9::AbsBlockInterpreter::unaryOperation(TR::DataType type, UnaryOperator op
 
       case TR::Int64:
          {
-         if (isLongConst(value))
+         if (isLongConst(value) && !insideLoop())
             {
             int64_t longVal = static_cast<TR::AbsVPValue*>(value)->getConstraint()->asLongConst()->getLong();
             TR::AbsValue* result1 = createLongConst(-longVal);
@@ -1364,7 +1370,7 @@ void J9::AbsBlockInterpreter::unaryOperation(TR::DataType type, UnaryOperator op
             state->push(result2);
             break;
             }
-         else if (isLongRange(value))
+         else if (isLongRange(value) && !insideLoop())
             {
             int64_t longValLow = static_cast<TR::AbsVPValue*>(value)->getConstraint()->asLongRange()->getLowLong();
             int64_t longValHigh = static_cast<TR::AbsVPValue*>(value)->getConstraint()->asLongRange()->getHighLong();
@@ -1455,7 +1461,7 @@ void J9::AbsBlockInterpreter::shift(TR::DataType type, ShiftOperator op)
       {
       case TR::Int32:
          {
-         if (isIntConst(value) && isIntConst(shiftAmount))
+         if (isIntConst(value) && isIntConst(shiftAmount) && !insideLoop())
             {
             int32_t intVal = static_cast<TR::AbsVPValue*>(value)->getConstraint()->asIntConst()->getInt();
             int32_t shiftAmountVal = static_cast<TR::AbsVPValue*>(shiftAmount)->getConstraint()->asIntConst()->getInt();
@@ -1490,7 +1496,7 @@ void J9::AbsBlockInterpreter::shift(TR::DataType type, ShiftOperator op)
          
       case TR::Int64:
          {
-         if (isLongConst(value) && isIntConst(shiftAmount))
+         if (isLongConst(value) && isIntConst(shiftAmount) && !insideLoop())
             {
             int64_t longVal = static_cast<TR::AbsVPValue*>(value)->getConstraint()->asLongConst()->getLong();
             int32_t shiftAmountVal = static_cast<TR::AbsVPValue*>(shiftAmount)->getConstraint()->asIntConst()->getInt();
@@ -1810,7 +1816,7 @@ void J9::AbsBlockInterpreter::conditionalBranch(TR::DataType type, int32_t label
          TR::AbsValue* value = state->pop();
          TR_ASSERT_FATAL(value->getDataType() == TR::Address, "Unexpected type");
          
-         if (value->isParameter() && !value->isImplicitParameter())
+         if (value->isParameter() && !value->isImplicitParameter() && lastTimeThrough())
             {
             TR::PotentialOptimizationVPPredicate* p1 = 
                new (region()) TR::PotentialOptimizationVPPredicate(TR::VPNullObject::create(vp()), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
@@ -1839,7 +1845,7 @@ void J9::AbsBlockInterpreter::conditionalBranch(TR::DataType type, int32_t label
          TR::AbsValue* value = state->pop();
          TR_ASSERT_FATAL(value->getDataType() == TR::Address, "Unexpected type");
 
-         if (value->isParameter() && !value->isImplicitParameter())
+         if (value->isParameter() && !value->isImplicitParameter() && lastTimeThrough())
             {
             TR::PotentialOptimizationVPPredicate* p1 = 
                new (region()) TR::PotentialOptimizationVPPredicate(TR::VPNullObject::create(vp()), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
@@ -1868,7 +1874,7 @@ void J9::AbsBlockInterpreter::conditionalBranch(TR::DataType type, int32_t label
          TR::AbsValue* value = state->pop();
          TR_ASSERT_FATAL(value->getDataType() == TR::Int32, "Unexpected type");
 
-         if (value->isParameter())
+         if (value->isParameter() && lastTimeThrough())
             {
             TR::PotentialOptimizationVPPredicate* p1 = 
                new (region()) TR::PotentialOptimizationVPPredicate(TR::VPIntConst::create(vp(), 0), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
@@ -1899,7 +1905,7 @@ void J9::AbsBlockInterpreter::conditionalBranch(TR::DataType type, int32_t label
          TR::AbsValue* value = state->pop();
          TR_ASSERT_FATAL(value->getDataType() == TR::Int32, "Unexpected type");
 
-         if (value->isParameter())
+         if (value->isParameter() && lastTimeThrough())
             {
             TR::PotentialOptimizationVPPredicate* p1 = 
                new (region()) TR::PotentialOptimizationVPPredicate(TR::VPIntConst::create(vp(), 0), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
@@ -1930,18 +1936,15 @@ void J9::AbsBlockInterpreter::conditionalBranch(TR::DataType type, int32_t label
          TR::AbsValue* value = state->pop();
          TR_ASSERT_FATAL(value->getDataType() == TR::Int32, "Unexpected type");
 
-         if (value->isParameter())
+         if (value->isParameter() && lastTimeThrough())
             {
-            if (isInt(value))
-               {
-               TR::PotentialOptimizationVPPredicate* p1 = 
-                  new (region()) TR::PotentialOptimizationVPPredicate(TR::VPIntRange::create(vp(), INT_MIN, -1), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
-               TR::PotentialOptimizationVPPredicate* p2 = 
-                  new (region()) TR::PotentialOptimizationVPPredicate(TR::VPIntRange::create(vp(), 0, INT_MAX), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
-            
-               _inliningMethodSummary->addPotentialOptimizationByArgument(p1, value->getParamPosition());
-               _inliningMethodSummary->addPotentialOptimizationByArgument(p2, value->getParamPosition());
-               }
+            TR::PotentialOptimizationVPPredicate* p1 = 
+               new (region()) TR::PotentialOptimizationVPPredicate(TR::VPIntRange::create(vp(), INT_MIN, -1), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
+            TR::PotentialOptimizationVPPredicate* p2 = 
+               new (region()) TR::PotentialOptimizationVPPredicate(TR::VPIntRange::create(vp(), 0, INT_MAX), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
+         
+            _inliningMethodSummary->addPotentialOptimizationByArgument(p1, value->getParamPosition());
+            _inliningMethodSummary->addPotentialOptimizationByArgument(p2, value->getParamPosition());
             }
 
          switch (type)
@@ -1961,7 +1964,7 @@ void J9::AbsBlockInterpreter::conditionalBranch(TR::DataType type, int32_t label
          TR::AbsValue* value = state->pop();
          TR_ASSERT_FATAL(value->getDataType() == TR::Int32, "Unexpected type");
          
-         if (value->isParameter())
+         if (value->isParameter() && lastTimeThrough())
             {
             TR::PotentialOptimizationVPPredicate* p1 = 
                new (region()) TR::PotentialOptimizationVPPredicate(TR::VPIntRange::create(vp(), INT_MIN, 0), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
@@ -1989,7 +1992,7 @@ void J9::AbsBlockInterpreter::conditionalBranch(TR::DataType type, int32_t label
          TR::AbsValue* value = state->pop();
          TR_ASSERT_FATAL(value->getDataType() == TR::Int32, "Unexpected type");
 
-         if (value->isParameter())
+         if (value->isParameter() && lastTimeThrough())
             {
             TR::PotentialOptimizationVPPredicate* p1 = 
                new (region()) TR::PotentialOptimizationVPPredicate(TR::VPIntRange::create(vp(), INT_MIN, 0), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
@@ -2017,7 +2020,7 @@ void J9::AbsBlockInterpreter::conditionalBranch(TR::DataType type, int32_t label
          TR::AbsValue* value = state->pop();
          TR_ASSERT_FATAL(value->getDataType() == TR::Int32, "Unexpected type");
 
-         if (value->isParameter())
+         if (value->isParameter() && lastTimeThrough())
             {
             TR::PotentialOptimizationVPPredicate* p1 = 
                   new (region()) TR::PotentialOptimizationVPPredicate(TR::VPIntRange::create(vp(), INT_MIN, -1), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::BranchFolding, vp());
@@ -2294,7 +2297,7 @@ void J9::AbsBlockInterpreter::arraylength()
    TR::AbsValue* arrayRef = state->pop();
    TR_ASSERT_FATAL(arrayRef->getDataType() == TR::Address, "Unexpected type");
 
-   if (arrayRef->isParameter() && !arrayRef->isImplicitParameter())
+   if (arrayRef->isParameter() && !arrayRef->isImplicitParameter() && lastTimeThrough())
       {
       TR::PotentialOptimizationVPPredicate* p1 = 
          new (region()) TR::PotentialOptimizationVPPredicate(TR::VPNullObject::create(vp()), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::NullCheckFolding, vp());
@@ -2337,7 +2340,7 @@ void J9::AbsBlockInterpreter::instanceof()
    TR_OpaqueClassBlock *castClass = _callerMethod->getClassFromConstantPool(comp(), cpIndex); //The cast class to be compared with
 
    //Add to the inlining summary
-   if (objectRef->isParameter())
+   if (objectRef->isParameter() && !objectRef->isImplicitParameter() && lastTimeThrough())
       {
       TR::PotentialOptimizationVPPredicate* p1 = 
          new (region()) TR::PotentialOptimizationVPPredicate(TR::VPNullObject::create(vp()), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::InstanceOfFolding, vp());
@@ -2398,7 +2401,7 @@ void J9::AbsBlockInterpreter::checkcast()
    TR_OpaqueClassBlock* castClass = _callerMethod->getClassFromConstantPool(comp(), cpIndex);
 
    //adding to method summary
-   if (objRef->isParameter() && !objRef->isImplicitParameter() )
+   if (objRef->isParameter() && !objRef->isImplicitParameter() && lastTimeThrough())
       {
       TR::PotentialOptimizationVPPredicate* p1 = 
          new (region()) TR::PotentialOptimizationVPPredicate(TR::VPNullObject::create(vp()), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::CheckCastFolding, vp());
@@ -2465,7 +2468,7 @@ void J9::AbsBlockInterpreter::get(bool isStatic)
       TR::AbsValue* objRef = state->pop();
       TR_ASSERT_FATAL(objRef->getDataType() == TR::Address, "Unexpected type");
 
-      if (objRef->isParameter() && !objRef->isImplicitParameter())  
+      if (objRef->isParameter() && !objRef->isImplicitParameter() && lastTimeThrough())  
          {
          TR::PotentialOptimizationVPPredicate* p1 = 
             new (region()) TR::PotentialOptimizationVPPredicate(TR::VPNullObject::create(vp()), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::NullCheckFolding, vp());
@@ -2540,7 +2543,7 @@ void J9::AbsBlockInterpreter::put(bool isStatic)
       TR::AbsValue* objRef = state->pop();
       TR_ASSERT_FATAL(objRef->getDataType() == TR::Address, "Unexpected type");
 
-      if (objRef->isParameter() && !objRef->isImplicitParameter())  
+      if (objRef->isParameter() && !objRef->isImplicitParameter() && lastTimeThrough())  
          {
          TR::PotentialOptimizationVPPredicate* p1 = 
             new (region()) TR::PotentialOptimizationVPPredicate(TR::VPNullObject::create(vp()), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::NullCheckFolding, vp());
@@ -2573,7 +2576,7 @@ void J9::AbsBlockInterpreter::iinc(int32_t index, int32_t incVal)
    TR::AbsValue* value = state->at(index);
    TR_ASSERT_FATAL(value->getDataType() == TR::Int32, "Unexpected type");
 
-   if (isIntConst(value))
+   if (isIntConst(value) && !insideLoop())
       {
       TR::AbsValue* result = createIntConst(static_cast<TR::AbsVPValue*>(value)->getConstraint()->asIntConst()->getInt() + incVal);
       state->set(index, result);
@@ -2591,10 +2594,6 @@ void J9::AbsBlockInterpreter::invoke(TR::MethodSymbol::Kinds kind)
    {
    TR::AbsStackMachineState* state = getState();
 
-   if (!lastTimeThrough())
-      {
-      
-      }
    int32_t cpIndex = _bci->next2Bytes();
 
    //split
@@ -2633,7 +2632,7 @@ void J9::AbsBlockInterpreter::invoke(TR::MethodSymbol::Kinds kind)
       TR::AbsValue* objRef = state->pop();
       if (kind == TR::MethodSymbol::Interface || kind == TR::MethodSymbol::Virtual)
          {
-         if (objRef->isParameter() && !objRef->isImplicitParameter())  
+         if (objRef->isParameter() && !objRef->isImplicitParameter() && lastTimeThrough())  
             {
             TR::PotentialOptimizationVPPredicate* p1 = 
                new (region()) TR::PotentialOptimizationVPPredicate(TR::VPNullObject::create(vp()), _bci->currentByteCodeIndex(), TR::PotentialOptimizationPredicate::Kind::NullCheckFolding, vp());
@@ -2647,7 +2646,8 @@ void J9::AbsBlockInterpreter::invoke(TR::MethodSymbol::Kinds kind)
       args->set(0, objRef);
       }
 
-   _visitor->visitCallSite(callsite, _callerIndex, callBlock, args); //callback 
+   if (lastTimeThrough())
+      _visitor->visitCallSite(callsite, _callerIndex, callBlock, args); //callback 
 
    if (calleeMethod->isConstructor() || calleeMethod->returnType() == TR::NoType )
       return;
