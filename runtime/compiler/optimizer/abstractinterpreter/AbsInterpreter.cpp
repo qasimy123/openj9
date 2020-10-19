@@ -30,7 +30,7 @@
 TR::AbsInterpreter::AbsInterpreter(TR::ResolvedMethodSymbol* callerMethodSymbol, 
                                     TR::CFG* cfg, 
                                     TR::AbsVisitor* vistor, 
-                                    std::vector<TR::AbsValue*>* arguments, 
+                                    TR::vector<TR::AbsValue*, TR::Region&>* arguments, 
                                     TR::Region& region, 
                                     TR::Compilation* comp) :
       _callerMethodSymbol(callerMethodSymbol),
@@ -301,7 +301,7 @@ void TR::AbsInterpreter::transferBlockStatesFromPredeccesors(TR::Block* block, b
             copiedState->at(i) ? copiedState->at(i)->setToTop() : copiedState->set(i, new (region()) TR::AbsVPValue(vp(), NULL, TR::NoType));
             }
 
-         std::vector<TR::AbsValue*> temp;
+         TR::vector<TR::AbsValue*, TR::Region&> temp(region());
          while (copiedState->getStackSize() != 0)
             {
             TR::AbsValue* val = copiedState->pop();
@@ -397,7 +397,7 @@ TR::AbsBlockInterpreter::AbsBlockInterpreter(TR::Block* block,
    _bci.setIndex(getBlockStartIndex());
    }
 
-TR::AbsStackMachineState* TR::AbsBlockInterpreter::setStartBlockState(std::vector<TR::AbsValue*>* args)
+TR::AbsStackMachineState* TR::AbsBlockInterpreter::setStartBlockState(TR::vector<TR::AbsValue*, TR::Region&>* args)
    {  
    TR_ResolvedJ9Method *method = (TR_ResolvedJ9Method *)_callerMethod;
    J9ROMMethod *romMethod = method->romMethod();
@@ -2756,7 +2756,7 @@ void TR::AbsBlockInterpreter::invoke(TR::MethodSymbol::Kinds kind)
    uint32_t numExplicitParams = calleeMethod->numberOfExplicitParameters();
    uint32_t totalNumParams = numExplicitParams + (kind  == TR::MethodSymbol::Static ? 0 : 1);
 
-   std::vector<TR::AbsValue*> args(totalNumParams);
+   TR::vector<TR::AbsValue*, TR::Region&> args(totalNumParams, region());
 
    for (uint32_t i = 0 ; i < numExplicitParams; i ++) //explicit param
       {

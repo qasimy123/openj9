@@ -39,7 +39,7 @@ namespace TR {
 class AbsInterpreter
    {
    public:
-   AbsInterpreter(TR::ResolvedMethodSymbol* callerMethodSymbol, TR::CFG* cfg, TR::AbsVisitor* vistor, std::vector<TR::AbsValue*>* arguments, TR::Region& region, TR::Compilation* comp);
+   AbsInterpreter(TR::ResolvedMethodSymbol* callerMethodSymbol, TR::CFG* cfg, TR::AbsVisitor* vistor, TR::vector<TR::AbsValue*, TR::Region&>* arguments, TR::Region& region, TR::Compilation* comp);
 
    /**
     * @brief start to interpret the method.
@@ -80,7 +80,7 @@ class AbsInterpreter
       
    TR::AbsVisitor* _visitor;
 
-   std::vector<TR::AbsValue*>* _arguments;
+   TR::vector<TR::AbsValue*, TR::Region&>* _arguments;
 
    TR::InliningMethodSummary* _inliningMethodSummary;
    TR::AbsValue* _returnValue;
@@ -114,7 +114,7 @@ class AbsBlockInterpreter
                         TR::Compilation* comp, 
                         TR::Region& region);
                         
-   TR::AbsStackMachineState* setStartBlockState(std::vector<TR::AbsValue*>* args);
+   TR::AbsStackMachineState* setStartBlockState(TR::vector<TR::AbsValue*, TR::Region&>* args);
    bool interpret();
 
    private:

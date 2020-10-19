@@ -69,7 +69,7 @@ J9::IDTBuilder::~IDTBuilder()
    }
 
 
-void J9::IDTBuilder::performAbstractInterpretation(TR::IDTNode* node, TR::IDTBuilderVisitor& visitor, std::vector<TR::AbsValue*>* arguments, int32_t callerIndex)
+void J9::IDTBuilder::performAbstractInterpretation(TR::IDTNode* node, TR::IDTBuilderVisitor& visitor, TR::vector<TR::AbsValue*, TR::Region&>* arguments, int32_t callerIndex)
    {
    TR::AbsInterpreter interpreter(node->getResolvedMethodSymbol(), node->getCallTarget()->_cfg, &visitor, arguments, region(), comp());
    
