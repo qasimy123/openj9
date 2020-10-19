@@ -19,17 +19,18 @@
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
  *******************************************************************************/
 
-#ifndef J9_ABS_INTERPRETER_INCL
-#define J9_ABS_INTERPRETER_INCL
+#ifndef ABS_INTERPRETER_INCL
+#define ABS_INTERPRETER_INCL
 
 #include "optimizer/abstractinterpreter/IDTBuilder.hpp"
 #include "optimizer/abstractinterpreter/AbsStackMachineState.hpp"
 #include "il/Block.hpp"
 #include "ilgen/J9ByteCodeIterator.hpp"
 #include "infra/ILWalk.hpp"
+#include <vector>
 
 
-namespace J9 {
+namespace TR {
    
 /*
  * The abstract interpreter for Java Bytecode.
@@ -38,7 +39,7 @@ namespace J9 {
 class AbsInterpreter
    {
    public:
-   AbsInterpreter(TR::ResolvedMethodSymbol* callerMethodSymbol, TR::CFG* cfg, TR::AbsVisitor* vistor, TR::AbsArguments* arguments, TR::Region& region, TR::Compilation* comp);
+   AbsInterpreter(TR::ResolvedMethodSymbol* callerMethodSymbol, TR::CFG* cfg, TR::AbsVisitor* vistor, std::vector<TR::AbsValue*>* arguments, TR::Region& region, TR::Compilation* comp);
 
    /**
     * @brief start to interpret the method.
@@ -62,24 +63,32 @@ class AbsInterpreter
 
    TR::ValuePropagation *vp();
 
+   typedef TR::typed_allocator<std::pair<TR::Block*, TR::AbsStackMachineState*>, TR::Region&> BlockStateMapAllocator;
+   typedef std::less<TR::Block*> BlockStateMapComparator;
+   std::map<TR::Block*, TR::AbsStackMachineState*, BlockStateMapComparator, BlockStateMapAllocator> _blockStateMap;
+
+   TR::AbsStackMachineState* getState(TR::Block* block);
+   void setState(TR::Block* block, TR::AbsStackMachineState* state);
+
+   void transferBlockStatesFromPredeccesors(TR::Block* block, bool insideLoop);
+
    bool interpretStructure(TR_Structure* structure, bool insideLoop, bool lastTimeThrough);
    bool interpretRegionStructure(TR_RegionStructure* regionStructure, bool insideLoop, bool lastTimeThrough);
    bool interpretBlockStructure(TR_BlockStructure* blockStructure, bool insideLoop, bool lastTimeThrough);
+
+   bool interpretBlock(TR::Block* block, bool insideLoop, bool lastTimeThrough);
       
    TR::AbsVisitor* _visitor;
 
-   TR::AbsArguments* _arguments;
+   std::vector<TR::AbsValue*>* _arguments;
 
    TR::InliningMethodSummary* _inliningMethodSummary;
    TR::AbsValue* _returnValue;
-
-   TR_J9ByteCodeIterator* _bci;
-   
+   TR_J9ByteCodeIterator _bci;
    int32_t _callerIndex;
    TR::ResolvedMethodSymbol* _callerMethodSymbol;
    TR_ResolvedMethod* _callerMethod;
    TR::CFG* _cfg;
-
    TR::Region& _region;
    TR::Compilation* _comp;
    TR::ValuePropagation* _vp;
@@ -92,21 +101,21 @@ class AbsBlockInterpreter
    {
    public:
    AbsBlockInterpreter(TR::Block* block,
+                        TR::AbsStackMachineState* state,
                         bool insideLoop,
                         bool lastTimeThrough,
                         int32_t callerIndex, 
                         TR::ResolvedMethodSymbol* callerMethodSymbol, 
-                        TR_J9ByteCodeIterator* bci,
+                        TR_J9ByteCodeIterator& bci,
                         TR::AbsValue** returnValue, 
                         TR::InliningMethodSummary* summary,
                         TR::AbsVisitor* visitor,
                         TR::ValuePropagation* vp,
                         TR::Compilation* comp, 
                         TR::Region& region);
-
+                        
+   TR::AbsStackMachineState* setStartBlockState(std::vector<TR::AbsValue*>* args);
    bool interpret();
-   
-   void setStartBlockState(TR::AbsArguments* args); //only use this if the block to be interpreted is the START block of the CFG
 
    private:
 
@@ -143,12 +152,10 @@ class AbsBlockInterpreter
    TR::Block* getBlock() { return _block; }
    int32_t getBlockStartIndex() { return _block->getBlockBCIndex(); }
    int32_t getBlockEndIndex() { return _block->getBlockBCIndex() + _block->getBlockSize(); }
-   TR::AbsStackMachineState* getState() { return static_cast<TR::AbsStackMachineState*>(_block->getAbsState()); }
+   TR::AbsStackMachineState* getState() { return _state; }
 
    bool insideLoop() { return _insideLoop; }
    bool lastTimeThrough() { return _lastTimeThrough; }
-
-   void transferBlockStatesFromPredeccesors();
    
    bool interpretByteCode();
 
@@ -254,19 +261,18 @@ class AbsBlockInterpreter
    TR::Compilation* comp() { return _comp; }
    TR::Region& region() { return _region; }
    TR::ValuePropagation* vp() { return _vp; }
-
    bool _insideLoop;
    bool _lastTimeThrough;
-
    int32_t _callerIndex;
    TR::Block* _block;
+   TR::AbsStackMachineState* _state;
    TR::AbsValue** _returnValue;
    TR::Compilation* _comp;
    TR::Region& _region;
    TR::ValuePropagation* _vp;
    TR::ResolvedMethodSymbol* _callerMethodSymbol;
    TR_ResolvedMethod* _callerMethod;
-   TR_J9ByteCodeIterator* _bci;
+   TR_J9ByteCodeIterator& _bci;
    TR::AbsVisitor* _visitor;
    TR::InliningMethodSummary* _inliningMethodSummary;
    };

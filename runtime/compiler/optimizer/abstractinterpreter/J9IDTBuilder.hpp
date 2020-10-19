@@ -33,6 +33,7 @@ namespace J9 { typedef J9::IDTBuilder IDTBuilderConnector; }
 
 #include "optimizer/abstractinterpreter/OMRIDTBuilder.hpp"
 #include "optimizer/J9EstimateCodeSize.hpp"
+#include <vector>
 
 namespace TR { class IDTBuilder; }
 
@@ -70,7 +71,7 @@ class IDTBuilder : public OMR::IDTBuilderConnector
     * @param arguments the arguments passed from the caller method.
     * @param callerIndex the caller index for call site
     */
-   void performAbstractInterpretation(TR::IDTNode* node, TR::IDTBuilderVisitor& visitor, TR::AbsArguments* arguments, int32_t callerIndex);
+   void performAbstractInterpretation(TR::IDTNode* node, TR::IDTBuilderVisitor& visitor, std::vector<TR::AbsValue*>* arguments, int32_t callerIndex);
 
    TR_J9EstimateCodeSize* _cfgGen;
    };
