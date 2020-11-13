@@ -984,10 +984,10 @@ bool TR::AbsBlockInterpreter::interpretByteCode()
             traceMsg(comp(), "Encounter invokedynamic. Abort abstract interpreting method %s.\n", _callerMethodSymbol->signature(comp()->trMemory())); 
             return false; 
             break;
-      case J9BCinvokeinterface: invoke(TR::MethodSymbol::Kinds::Interface); break;
-      case J9BCinvokeinterface2: /*how should we handle invokeinterface2? */ break;
+      case J9BCinvokeinterface:invoke(TR::MethodSymbol::Kinds::Interface); break;
+      case J9BCinvokeinterface2: break;
       case J9BCinvokespecial: invoke(TR::MethodSymbol::Kinds::Special); break;
-      case J9BCinvokestatic: invoke(TR::MethodSymbol::Kinds::Static); break;
+      case J9BCinvokestatic:invoke(TR::MethodSymbol::Kinds::Static); break;
       case J9BCinvokevirtual: invoke(TR::MethodSymbol::Kinds::Virtual); break;
       case J9BCinvokespecialsplit: invoke(TR::MethodSymbol::Kinds::Special); break;
       case J9BCinvokestaticsplit: invoke(TR::MethodSymbol::Kinds::Static); break;
@@ -2767,7 +2767,7 @@ void TR::AbsBlockInterpreter::invoke(TR::MethodSymbol::Kinds kind)
          state->pop();
   
       value = state->pop();
-      TR_ASSERT_FATAL(dataType == TR::Int8 || dataType == TR::Int16 ? value->getDataType() == TR::Int32 : value->getDataType() == dataType, "Unexpected type");
+      TR_ASSERT_FATAL(dataType == TR::Int8 || dataType == TR::Int16 ? value->getDataType() == TR::Int32 : value->getDataType() == dataType, "Unexpected type %s vs %s",TR::DataType::getName(dataType), TR::DataType::getName(value->getDataType()));
 
       args[totalNumParams-i-1] =  value;
       }
@@ -2856,6 +2856,7 @@ TR_CallSite* TR::AbsBlockInterpreter::getCallSite(TR::MethodSymbol::Kinds kind, 
    TR::ResolvedMethodSymbol *calleeSymbol = !isInterface ? symbol->castToResolvedMethodSymbol() : NULL;
 
    TR_ResolvedMethod *resolvedCalleeMethod = !isInterface ? calleeSymbol->getResolvedMethod() : NULL;
+          
 
    TR::Method *interfaceMethod = !isInterface ? calleeSymbol->getMethod() : comp()->fej9()->createMethod(comp()->trMemory(), _callerMethod->containingClass(), cpIndex);
   
