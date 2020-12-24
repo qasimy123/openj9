@@ -2914,6 +2914,7 @@ TR_CallSite* TR::AbsBlockInterpreter::getCallSite(TR::MethodSymbol::Kinds kind, 
                                                       allConsts);
          break;
       case TR::MethodSymbol::Kinds::Interface:
+         {
          callSite = new (region()) TR_J9InterfaceCallSite(_callerMethod, 
                                                             callNodeTreeTop, 
                                                             parent, 
@@ -2930,7 +2931,9 @@ TR_CallSite* TR::AbsBlockInterpreter::getCallSite(TR::MethodSymbol::Kinds kind, 
                                                             comp(), 
                                                             depth, 
                                                             allConsts);
+         callSite->_isInterface = true;
          break;
+         }
       }
    
    if (!callSite)
