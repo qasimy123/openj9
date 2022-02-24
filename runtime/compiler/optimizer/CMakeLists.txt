@@ -79,4 +79,5 @@ j9jit_files(
 	optimizer/abstractinterpreter/J9IDTBuilder.cpp
 	optimizer/abstractinterpreter/AbsInterpreter.cpp
 	optimizer/abstractinterpreter/AbsStackMachineState.cpp
+	optimizer/TreeLowering.cpp
 )
